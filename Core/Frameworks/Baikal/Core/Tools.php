@@ -87,9 +87,9 @@ class Tools {
         }
 
         # Asserting config file is writable
-        if (!is_writable(PROJECT_PATH_CONFIG . "baikal.yaml")) {
-            throw new \Exception("config/baikal.yaml is not writable. Please give write permissions to httpd user on file 'config/baikal.yaml'.");
-        }
+        // if (!is_writable(PROJECT_PATH_CONFIG . "baikal.yaml")) {
+        //     throw new \Exception("config/baikal.yaml is not writable. Please give write permissions to httpd user on file 'config/baikal.yaml'.");
+        // }
     }
 
     static function getRequiredTablesList() {
