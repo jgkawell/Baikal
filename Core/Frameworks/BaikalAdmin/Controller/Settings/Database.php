@@ -74,23 +74,44 @@ class Database extends \Flake\Core\Controller {
 
     function morphologyHook(\Formal\Form $oForm, \Formal\Form\Morphology $oMorpho) {
         if ($oForm->submitted()) {
-            $bMySQL = (intval($oForm->postValue("mysql")) === 1);
+            $bMySQL = ($oForm->postValue("backend") == 'mysql');
+            $bPgSQL = ($oForm->postValue("backend") == 'pgsql');
         } else {
             try {
                 $config = Yaml::parseFile(PROJECT_PATH_CONFIG . "baikal.yaml");
             } catch (\Exception $e) {
                 error_log('Error reading baikal.yaml file : ' . $e->getMessage());
             }
-            $bMySQL = $config['database']['mysql'] ?? true;
+
+            # Config key 'mysql' kept for backwards compatibility
+            if (key_exists('mysql', $config['database'])) {
+                $bMySQL = $config['database']['mysql'];
+                $bPgSQL = false;
+
+                $this->oModel->set('backend', $bMySQL ? 'mysql' : 'sqlite');
+            } else {
+                $bMySQL = $config['database']['backend'] == 'mysql';
+                $bPgSQL = $config['database']['backend'] == 'pgsql';
+            }
         }
 
-        if ($bMySQL === true) {
+        if ($bMySQL === true || $bPgSQL === true) {
             $oMorpho->remove("sqlite_file");
-        } else {
+        }
+
+        if (!$bMySQL) {
             $oMorpho->remove("mysql_host");
             $oMorpho->remove("mysql_dbname");
             $oMorpho->remove("mysql_username");
             $oMorpho->remove("mysql_password");
+            $oMorpho->remove("mysql_ca_cert");
+        }
+
+        if (!$bPgSQL) {
+            $oMorpho->remove("pgsql_host");
+            $oMorpho->remove("pgsql_dbname");
+            $oMorpho->remove("pgsql_username");
+            $oMorpho->remove("pgsql_password");
         }
     }
 
@@ -98,37 +119,49 @@ class Database extends \Flake\Core\Controller {
         if ($oForm->refreshed()) {
             return true;
         }
-        if (intval($oForm->modelInstance()->get("mysql")) === 1) {
-            # We have to check the MySQL connection
-            $sHost = $oForm->modelInstance()->get("mysql_host");
-            $sDbName = $oForm->modelInstance()->get("mysql_dbname");
-            $sUsername = $oForm->modelInstance()->get("mysql_username");
-            $sPassword = $oForm->modelInstance()->get("mysql_password");
+        if ($oForm->modelInstance()->get("backend") == 'mysql' || $oForm->modelInstance()->get("backend") == 'pgsql') {
+            $dbBackendName = $oForm->modelInstance()->get("backend") == 'pgsql' ? 'PostgreSQL' : 'MySQL';
+            $dbBackendPrefix = $oForm->modelInstance()->get("backend");
+
+            # We have to check the MySQL or PostgreSQL connection
+            $sHost = $oForm->modelInstance()->get("{$dbBackendPrefix}_host");
+            $sDbName = $oForm->modelInstance()->get("{$dbBackendPrefix}_dbname");
+            $sUsername = $oForm->modelInstance()->get("{$dbBackendPrefix}_username");
+            $sPassword = $oForm->modelInstance()->get("{$dbBackendPrefix}_password");
+            $sCaCert = $oForm->modelInstance()->get("{$dbBackendPrefix}_ca_cert");
 
             try {
-                $oDB = new \Flake\Core\Database\Mysql(
+                $oDB = (($oForm->modelInstance()->get("backend")) == 'pgsql'
+                ) ? new \Flake\Core\Database\Pgsql(
                     $sHost,
                     $sDbName,
                     $sUsername,
                     $sPassword
+                ) : new \Flake\Core\Database\Mysql(
+                    $sHost,
+                    $sDbName,
+                    $sUsername,
+                    $sPassword,
+                    $sCaCert
                 );
             } catch (\Exception $e) {
-                $sMessage = "<strong>MySQL error:</strong> " . $e->getMessage();
+                $sMessage = "<strong>{$dbBackendName} error:</strong> " . $e->getMessage();
                 $sMessage .= "<br /><strong>Nothing has been saved</strong>";
-                $oForm->declareError($oMorpho->element("mysql_host"), $sMessage);
-                $oForm->declareError($oMorpho->element("mysql_dbname"));
-                $oForm->declareError($oMorpho->element("mysql_username"));
-                $oForm->declareError($oMorpho->element("mysql_password"));
+                $oForm->declareError($oMorpho->element("{$dbBackendPrefix}_host"), $sMessage);
+                $oForm->declareError($oMorpho->element("{$dbBackendPrefix}_dbname"));
+                $oForm->declareError($oMorpho->element("{$dbBackendPrefix}_username"));
+                $oForm->declareError($oMorpho->element("{$dbBackendPrefix}_password"));
+                $oForm->declareError($oMorpho->element("{$dbBackendPrefix}_ca_cert"));
 
                 return;
             }
 
             if (($aMissingTables = \Baikal\Core\Tools::isDBStructurallyComplete($oDB)) !== true) {
-                $sMessage = "<strong>MySQL error:</strong> These tables, required by Baïkal, are missing: <strong>" . implode(", ", $aMissingTables) . "</strong><br />";
-                $sMessage .= "You may want create these tables using the file <strong>Core/Resources/Db/MySQL/db.sql</strong>";
+                $sMessage = "<strong>{$dbBackendName} error:</strong> These tables, required by Baïkal, are missing: <strong>" . implode(", ", $aMissingTables) . "</strong><br />";
+                $sMessage .= "You may want create these tables using the file <strong>Core/Resources/Db/{$dbBackendName}/db.sql</strong>";
                 $sMessage .= "<br /><br /><strong>Nothing has been saved</strong>";
 
-                $oForm->declareError($oMorpho->element("mysql"), $sMessage);
+                $oForm->declareError($oMorpho->element("backend"), $sMessage);
 
                 return;
             }
@@ -171,7 +204,7 @@ class Database extends \Flake\Core\Controller {
             } catch (\Exception $e) {
                 $oForm->declareError(
                     $oMorpho->element("sqlite_file"),
-                    "Baïkal was not able to establish a connexion to the SQLite database as configured.<br />SQLite says: " . $e->getMessage() . (string) $e
+                    "Baïkal was not able to establish a connection to the SQLite database as configured.<br />SQLite says: " . $e->getMessage() . (string) $e
                 );
             }
         }

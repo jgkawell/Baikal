@@ -45,8 +45,8 @@ class Tools {
 
         # Asserting PDO::SQLite or PDO::MySQL
         $aPDODrivers = \PDO::getAvailableDrivers();
-        if (!in_array('sqlite', $aPDODrivers, true) && !in_array('mysql', $aPDODrivers, true)) {
-            exit('<strong>Baikal Fatal Error</strong>: Both <strong>PDO::sqlite</strong> and <strong>PDO::mysql</strong> are unavailable. One of them at least is required by Baikal.');
+        if (!in_array('sqlite', $aPDODrivers, true) && !in_array('mysql', $aPDODrivers, true) && !in_array('pgsql', $aPDODrivers, true)) {
+            exit('<strong>Baikal Fatal Error</strong>: None of <strong>PDO::sqlite</strong>, <strong>PDO::mysql</strong> or <strong>PDO::pgsql</strong> are available. One of them at least is required by Baikal.');
         }
 
         # Assert that the temp folder is writable
@@ -65,7 +65,7 @@ class Tools {
     }
 
     static function assertBaikalIsOk() {
-        # DB connexion has not been asserted earlier by Flake, to give us a chance to trigger the install tool
+        # DB connection has not been asserted earlier by Flake, to give us a chance to trigger the install tool
         # We assert it right now
         if (!\Flake\Framework::isDBInitialized() && (!defined("BAIKAL_CONTEXT_INSTALL") || BAIKAL_CONTEXT_INSTALL === false)) {
             throw new \Exception("<strong>Fatal error</strong>: no connection to a database is available.");

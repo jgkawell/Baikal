@@ -3,7 +3,7 @@
 #################################################################
 #  Copyright notice
 #
-#  (c) 2013 Jérôme Schneider <mail@jeromeschneider.fr>
+#  (c) 2013 Kim Lidström <kim@dxtr.im>
 #  All rights reserved
 #
 #  http://flake.codr.fr
@@ -27,46 +27,33 @@
 
 namespace Flake\Core\Database;
 
-class Mysql extends \Flake\Core\Database {
+class Pgsql extends \Flake\Core\Database {
+    protected $oDb = false; // current DB link
+    protected $debugOutput = false;
+    protected $store_lastBuiltQuery = true;
+    protected $debug_lastBuiltQuery = "";
     protected $sHost = "";
     protected $sDbName = "";
     protected $sUsername = "";
     protected $sPassword = "";
-    protected $sCaCert = "";
 
-    function __construct($sHost, $sDbName, $sUsername, $sPassword, $sCaCert = "") {
+    public function __construct($sHost, $sDbName, $sUsername, $sPassword) {
         $this->sHost = $sHost;
         $this->sDbName = $sDbName;
         $this->sUsername = $sUsername;
         $this->sPassword = $sPassword;
-        $this->sCaCert = $sCaCert;
-
-        $options = [
-            \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-        ];
-
-        if ($this->sCaCert !== "") {
-            // PDO::MYSQL_ATTR_SSL_CA was deprecated in PHP 8.4 in favour of PDO\Mysql::ATTR_SSL_CA.
-            // Use constant() to resolve the right name at runtime without a direct reference to
-            // the deprecated constant, keeping compatibility with PHP 8.2 and 8.3.
-            $sslCaAttr = defined('PDO\Mysql::ATTR_SSL_CA')
-                ? constant('PDO\Mysql::ATTR_SSL_CA')
-                : constant('PDO::MYSQL_ATTR_SSL_CA');
-            $options[$sslCaAttr] = $this->sCaCert;
-        }
 
         $this->oDb = new \PDO(
-            'mysql:host=' . $this->sHost . ';dbname=' . $this->sDbName,
+            'pgsql:host=' . $this->sHost . ';dbname=' . $this->sDbName,
             $this->sUsername,
-            $this->sPassword,
-            $options
+            $this->sPassword
         );
     }
 
-    function tables() {
+    public function tables() {
         $aTables = [];
 
-        $sSql = "SHOW TABLES FROM `" . $this->sDbName . "`";
+        $sSql  = "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public'";
         $oStmt = $this->query($sSql);
 
         while (($aRs = $oStmt->fetch()) !== false) {

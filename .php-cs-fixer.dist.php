@@ -7,11 +7,14 @@ $config->getFinder()
 $config->setRules([
     '@PSR2' => true,
     '@Symfony' => true,
-    'binary_operator_spaces' => [],
+    'binary_operator_spaces' => [
+        'default' => 'at_least_single_space',
+    ],
     'braces_position' => [
         'functions_opening_brace' => 'same_line',
         'classes_opening_brace' => 'same_line'],
     'concat_space' => ['spacing' => 'one'],
+    'modifier_keywords' => ['elements' => []],
     'fully_qualified_strict_types' => false,
     'no_superfluous_phpdoc_tags' => false,
     'no_unneeded_control_parentheses' => false,
@@ -20,7 +23,6 @@ $config->setRules([
     'single_line_comment_spacing' => false,
     'single_quote' => false,
     'trailing_comma_in_multiline' => true,
-    'visibility_required' => false,
     'yoda_style' => false
 ]);
 

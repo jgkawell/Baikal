@@ -202,7 +202,7 @@ class Framework extends \Flake\Core\Framework {
                 session_start();
             }
             if (!isset($_SESSION['CSRF_TOKEN'])) {
-                $_SESSION['CSRF_TOKEN'] = bin2hex(openssl_random_pseudo_bytes(20));
+                $_SESSION['CSRF_TOKEN'] = bin2hex(random_bytes(20));
             }
         }
 
@@ -273,8 +273,12 @@ class Framework extends \Flake\Core\Framework {
         if (defined("BAIKAL_CONTEXT_INSTALL") && (!isset($config['system']['configured_version']) || $config['system']['configured_version'] === BAIKAL_VERSION)) {
             return true;
         }
-        if ($config['database']['mysql'] === true) {
+        # Config key 'mysql' kept for backwards compatibility
+        $legacyMysql = key_exists('mysql', $config['database']) && $config['database']['mysql'] === true;
+        if ($legacyMysql || (key_exists('backend', $config['database']) && $config['database']['backend'] === 'mysql')) {
             self::initDbMysql($config);
+        } elseif (key_exists('backend', $config['database']) && $config['database']['backend'] === 'pgsql') {
+            self::initDbPgsql($config);
         } else {
             self::initDbSqlite($config);
         }
@@ -327,16 +331,49 @@ class Framework extends \Flake\Core\Framework {
                 $config['database']['mysql_host'],
                 $config['database']['mysql_dbname'],
                 $config['database']['mysql_username'],
-                $config['database']['mysql_password']
+                $config['database']['mysql_password'],
+                key_exists('mysql_ca_cert', $config['database']) ? $config['database']['mysql_ca_cert'] : ''
             );
 
-            # We now setup t6he connexion to use UTF8
+            # We now setup the connection to use UTF8
             $GLOBALS["DB"]->query("SET NAMES UTF8");
         } catch (\Exception $e) {
-            exit("<h3>Baïkal was not able to establish a connexion to the configured MySQL database (as configured in config/baikal.yaml).</h3>");
+            exit("<h3>Ba&iuml;kal was not able to establish a connection to the configured MySQL database (as configured in config/baikal.yaml).</h3>");
         }
 
         return true;
+    }
+
+    protected static function initDbPgsql(array $config) {
+        if (!$config['database']['pgsql_host']) {
+            exit("<h3>The constant PROJECT_DB_PGSQL_HOST, containing the PostgreSQL host name, is not set.<br />You should set it in config/baikal.yaml</h3>");
+        }
+
+        if (!$config['database']['pgsql_dbname']) {
+            exit("<h3>The constant PROJECT_DB_PGSQL_DBNAME, containing the PostgreSQL database name, is not set.<br />You should set it in config/baikal.yaml</h3>");
+        }
+
+        try {
+            $GLOBALS["DB"] = new \Flake\Core\Database\Pgsql(
+                $config['database']['pgsql_host'],
+                $config['database']['pgsql_dbname'],
+                $config['database']['pgsql_username'],
+                $config['database']['pgsql_password']
+            );
+
+            $GLOBALS["DB"]->query("SET NAMES 'UTF8'");
+        } catch (\Exception $e) {
+            $message = "Baïkal was not able to establish a connection to the configured PostgreSQL database (as configured in config/baikal.yaml).";
+            if (!$config['database']['pgsql_username']) {
+                exit("<h3>$message Note: The constant PROJECT_DB_PGSQL_USERNAME, containing the PostgreSQL database username, is not set. If your database requires a username you should set it in config/baikal.yaml.</h3>");
+            }
+
+            if ($config['database']['pgsql_password'] === null) {
+                exit("<h3>$message Note: The constant PROJECT_DB_PGSQL_PASSWORD, containing the PostgreSQL database password, is not set. If your database requires a password you should set it in config/baikal.yaml.</h3>");
+            }
+
+            exit("<h3>$message</h3>");
+        }
     }
 
     static function isDBInitialized() {
